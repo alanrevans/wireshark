@@ -98,7 +98,7 @@ static int hf_megaco_error_descriptor           = -1;
 static int hf_megaco_error_code                 = -1;
 static int hf_megaco_error_string               = -1;
 static int hf_megaco_TerminationState_descriptor= -1;
-/* static int hf_megaco_Remote_descriptor          = -1; */
+static int hf_megaco_Remote_descriptor          = -1;
 static int hf_megaco_LocalControl_descriptor    = -1;
 static int hf_megaco_packages_descriptor        = -1;
 static int hf_megaco_Service_State              = -1;
@@ -460,6 +460,9 @@ static void
 dissect_megaco_TerminationStatedescriptor(tvbuff_t *tvb, proto_tree *tree, gint tvb_next_offset, gint tvb_current_offset);
 static void
 dissect_megaco_Localdescriptor(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gint tvb_next_offset, gint tvb_current_offset);
+static void
+dissect_megaco_Remotedescriptor(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gint tvb_next_offset, gint tvb_current_offset);
+
 static void
 dissect_megaco_LocalControldescriptor(tvbuff_t *tvb, proto_tree *tree, packet_info *pinfo, gint tvb_next_offset, gint tvb_current_offset, proto_tree *top_tree);
 static void
@@ -1793,7 +1796,7 @@ dissect_megaco_mediadescriptor(tvbuff_t *tvb, proto_tree *megaco_tree_command_li
             break;
         case MEGACO_REMOTE_TOKEN:
             tvb_current_offset = megaco_tvb_skip_wsp(tvb, tvb_LBRKT+1);
-            dissect_megaco_Localdescriptor(tvb, megaco_mediadescriptor_tree, pinfo,
+            dissect_megaco_Remotedescriptor(tvb, megaco_mediadescriptor_tree, pinfo,
                 tvb_RBRKT, tvb_current_offset);
             tvb_current_offset = tvb_RBRKT;
             break;
@@ -3050,6 +3053,25 @@ dissect_megaco_Localdescriptor(tvbuff_t *tvb, proto_tree *megaco_mediadescriptor
         call_dissector(sdp_handle, next_tvb, pinfo, megaco_localdescriptor_tree);
     }
 }
+static void
+dissect_megaco_Remotedescriptor(tvbuff_t *tvb, proto_tree *megaco_mediadescriptor_tree, packet_info *pinfo, gint tvb_next_offset, gint tvb_current_offset)
+{
+	gint tokenlen;
+	tvbuff_t *next_tvb;
+
+	proto_tree  *megaco_remotedescriptor_tree;
+	proto_item  *megaco_remotedescriptor_item;
+
+	tokenlen = tvb_next_offset - tvb_current_offset;
+
+	megaco_remotedescriptor_item = proto_tree_add_item(megaco_mediadescriptor_tree, hf_megaco_Remote_descriptor, tvb, tvb_current_offset, tokenlen, ENC_NA);
+	megaco_remotedescriptor_tree = proto_item_add_subtree(megaco_remotedescriptor_item, ett_megaco_Remotedescriptor);
+
+	if (tokenlen > 3) {
+		next_tvb = tvb_new_subset_length(tvb, tvb_current_offset, tokenlen);
+		call_dissector(sdp_handle, next_tvb, pinfo, megaco_remotedescriptor_tree);
+	}
+}
 
 /*
  *   localControlDescriptor = LocalControlToken LBRKT localParm
@@ -3518,14 +3540,14 @@ static void tvb_raw_text_add(tvbuff_t *tvb, proto_tree *tree){
 * tvb - The tvbuff in which we are skipping whitespaces, tab and end_of_line characters.
 * offset - The offset in tvb from which we begin trying to skip whitespace.
 *
-* Returns: The position in tvb of the first non-whitespace
+* Returns: The position in tvb of the first non-whitespace, treat 0x00 as white space, bug in some MEGACO encoders.
 */
 static gint megaco_tvb_skip_wsp(tvbuff_t* tvb, gint offset ){
     gint counter = offset;
     gint end = tvb_reported_length(tvb);
 
     for(counter = offset; counter < end &&
-        (g_ascii_isspace(tvb_get_guint8(tvb,counter))); counter++);
+        (g_ascii_isspace(tvb_get_guint8(tvb,counter)) || tvb_get_guint8(tvb, counter) == 0); counter++);
     return (counter);
 }
 
@@ -3656,11 +3678,9 @@ proto_register_megaco(void)
         { &hf_megaco_pkgdname,
           { "pkgdName", "megaco.pkgdname", FT_STRING, BASE_NONE, NULL, 0x0,
             "PackageName SLASH ItemID", HFILL }},
-#if 0
         { &hf_megaco_Remote_descriptor,
-          { "Remote Descriptor", "megaco.remotedescriptor", FT_STRING, BASE_NONE, NULL, 0x0,
+          { "Remote Descriptor", "megaco.remotedescriptor", FT_NONE, BASE_NONE, NULL, 0x0,
             "Remote Descriptor in Media Descriptor", HFILL }},
-#endif
         { &hf_megaco_reserve_group,
           { "Reserve Group", "megaco.reservegroup", FT_STRING, BASE_NONE, NULL, 0x0,
             "Reserve Group on or off", HFILL }},

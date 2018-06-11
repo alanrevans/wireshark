@@ -536,7 +536,7 @@ void FollowStreamDialog::addText(QString text, gboolean is_from_server, guint32 
     }
     ui->teStreamContent->setCurrentCharFormat(tcf);
 
-    ui->teStreamContent->insertPlainText(text);
+    ui->teStreamContent->appendPlainText(text);
     text_pos_to_packet_[ui->teStreamContent->textCursor().anchor()] = packet_num;
 
     if (truncated_) {
